@@ -1,3 +1,23 @@
-# Video minh họa Lab1
+# Video hướng dẫn Lab 1
 
-🎬 **Link xem / tải video trên Google Drive:** [https://drive.google.com/drive/folders/1ZP1N_SjpqM1MotUzIZ-xUL3k2El-2Nd9](https://drive.google.com/drive/folders/1ZP1N_SjpqM1MotUzIZ-xUL3k2El-2Nd9)
+## Google Drive
+
+> Thay `DAN_LINK_GOOGLE_DRIVE_TAI_DAY` bằng URL chia sẻ video của bạn.
+
+[▶ Xem video Lab 1 trên Google Drive](DAN_LINK_GOOGLE_DRIVE_TAI_DAY)
+
+## Nội dung video
+
+Cấu hình sudo sai, khai thác `sudo find`, kiểm tra log và cảnh báo Wazuh.
+
+## Thông tin nên ghi kèm
+
+- Thời lượng video: `... phút`
+- Ngày thực hiện: `DD/MM/YYYY`
+- Người thực hiện: `...`
+- Phiên bản Wazuh/Sysmon: `...`
+- Dải IP của lab: `...`
+
+## Lưu ý
+
+Chỉ cấp quyền **Viewer** cho liên kết công khai. Không đưa mật khẩu, token, API key, dữ liệu thật hoặc địa chỉ hạ tầng production vào video.

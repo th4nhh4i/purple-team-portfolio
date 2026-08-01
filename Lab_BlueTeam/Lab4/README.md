@@ -1,376 +1,103 @@
+# Lab 4 — Brute-force SSH và RDP
 
-> 🎬 **Video hướng dẫn / diễn tập (Lab4):** [https://drive.google.com/file/d/1gkWVBIK7Ll_VuUY4e7tdkfzmq87pIQrQ/view?usp=sharing](https://drive.google.com/file/d/1gkWVBIK7Ll_VuUY4e7tdkfzmq87pIQrQ/view?usp=sharing)
+> 🎥 **Video hướng dẫn:** [Mở tài liệu video Lab 4](Video/README.md)
 
-Kịch bản 4:  BRUTE-FORCE SSH-RDP
+## Mục tiêu
 
-1. Mô tả tình huống
+Mô phỏng Hydra dò mật khẩu vào SSH trên Ubuntu và RDP trên Windows Server. Wazuh thu thập Linux authentication log và Windows Security Event để phát hiện nhiều lần đăng nhập thất bại.
 
-Kẻ tấn công sử dụng công cụ Hydra thực hiện tấn công Brute Force nhằm dò quét tài khoản và mật khẩu của dịch vụ SSH trên máy Ubuntu và dịch vụ Remote Desktop (RDP) trên máy Windows Server.
+![Mô hình Brute-force](assets/architecture.png)
 
-Trong quá trình tấn công, Wazuh Agent sẽ thu thập log xác thực từ các máy chủ và gửi về Wazuh Server để phân tích, phát hiện và sinh cảnh báo.
+## Kiến trúc hạ tầng
 
-2. MÔ HÌNH TRIỂN KHAI LAB
+```mermaid
+flowchart LR
+    K[Kali Linux\n192.168.174.132] -->|Hydra SSH| U[Ubuntu SSH\n192.168.174.131]
+    K -->|Hydra RDP| R[Windows RDP\n192.168.174.129]
+    U -->|auth.log + Agent| W[Wazuh Server\n192.168.174.25]
+    R -->|Event 4625 + Agent| W
+    W --> D[Wazuh Dashboard]
+```
 
-Luồng dữ liệu
+| Thiết bị | Vai trò | IP |
+|---|---|---|
+| Kali Linux | Máy tấn công | `192.168.174.132` |
+| Ubuntu Server | SSH Server + Wazuh Agent | `192.168.174.131` |
+| Windows Server | RDP Server + Wazuh Agent | `192.168.174.129` |
+| Wazuh Server | SIEM | `192.168.174.25` |
 
-Kali Linux
+## Kiểm tra dịch vụ
 
-Ubuntu SSH Server / Windows RDP Server
+```bash
+# Ubuntu
+sudo systemctl status ssh
+ss -tunlp | grep 22
+tail -f /var/log/auth.log
 
-Wazuh Agent
+# Kali
+hydra -h
+```
 
-Wazuh Manager
+Trên Windows, bật Remote Desktop và kiểm tra firewall rule của nhóm **Remote Desktop**.
 
-Wazuh Dashboard
+## Luồng tấn công trong lab
 
-3. CHUẨN BỊ MÔI TRƯỜNG LAB
+```bash
+# RDP
+hydra -t 1 -W 3 -l Administrator \
+  -P /usr/share/wordlists/rockyou.txt \
+  rdp://192.168.174.129
 
-3.1 Trên Wazuh Server
+# SSH
+hydra -l ubuntu \
+  -P /usr/share/wordlists/rockyou.txt \
+  ssh://192.168.174.131
+```
 
-Kiểm tra trạng thái Manager
+![Hydra kiểm thử RDP](assets/hydra-rdp.png)
 
-    	systemctl status wazuh-manager
+> [!IMPORTANT]
+> Giới hạn tốc độ và chỉ dùng tài khoản lab. Dừng ngay khi đã tạo đủ số lượng event phục vụ detection.
 
-Kiểm tra Dashboard
+## Nguồn log và truy vấn
 
-    	systemctl status wazuh-dashboard
+| Nền tảng | Bằng chứng |
+|---|---|
+| Windows | Security Event ID `4625` — failed logon |
+| Ubuntu | `/var/log/auth.log`, chuỗi `Failed password` |
+| Wazuh | Source IP, username, số lần thất bại, thời gian và agent |
 
-Kiểm tra Indexer
+Ví dụ bộ lọc:
 
-    	systemctl status wazuh-indexer
-
-Kiểm tra Agent
-
-    	/var/ossec/bin/agent_control -l
-
-Đảm bảo Ubuntu Agent và Windows Agent ở trạng thái Active.
-
-3.2 Trên Ubuntu Server
-
-Kiểm tra SSH
-
-    	sudo systemctl status ssh
-
-Nếu SSH chưa hoạt động
-
-sudo systemctl enable ssh
-
-sudo systemctl start ssh
-
-Kiểm tra cổng SSH
-
-    	ss -tunlp | grep 22
-
-Kiểm tra file log
-
-    	tail -f /var/log/auth.log
-
-3.3 Trên Windows Server
-
-Bật Remote Desktop
-
-System Properties
-
-Remote
-
-Enable Remote Desktop
-
-Kiểm tra Firewall
-
-    	Get-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-3.4 Trên Kali Linux
-
-Kiểm tra Hydra
-
-    	hydra -h
-
-Chuẩn bị wordlist
-
-    	ls
-
-Ví dụ
-
-10_million_password_list_top_1000000.txt
-
-Nếu chưa có thì down: “ git clone https://github.com/kkrypt0nn/wordlists.git ”
-
-cd ~/wordlists/wordlists/usernames
-
-ls /usr/share/wordlists
-
-sudo gzip -d /usr/share/wordlists/rockyou.txt.gz
-
-4. CẤU HÌNH MÔI TRƯỜNG BAN ĐẦU
-
-Ubuntu
-
-Đăng nhập thử SSH
-
-    	ssh root@192.168.174.31
-
-Thử kết nối RDP
-
-nmap -p3389 192.168.174.163
-
-Đảm bảo dịch vụ hoạt động bình thường.
-
-5. HƯỚNG DẪN TẤN CÔNG (ATTACKER COMMAND)
-
-5.1 Brute Force RDP
-
-Trên Kali Linux
-
-hydra -t 1 -W 3 \-l Administrator \-P /usr/share/wordlists/rockyou.txt \rdp://192.168.174.129
-
-Đợi Hydra thực hiện nhiều lần đăng nhập thất bại.
-
-5.2 Kiểm tra Event Windows
-
-Mở
-
-Event Viewer
-
-Windows Logs
-
-Security
-
-Lọc Event
-
-4625
-
-5.3 Brute Force SSH
-
-hydra \
-
--l ubuntu \
-
--P /usr/share/wordlists/rockyou.txt \
-
-ssh://192.168.174.131
-
-Đợi Hydra hoàn thành.
-
-5.4 Kiểm tra log Ubuntu
-
-    	tail -f /var/log/auth.log
-
-Kiểm tra số lượng đăng nhập thất bại
-
-    	grep "Failed password" /var/log/auth.log
-
-6. KIỂM TRA TRÊN SIEM
-
-Đăng nhập Dashboard
-
-https://192.168.174.25
-
-Mở
-
-Security Events
-
-Lọc Event Windows
-
+```text
 data.win.system.eventID:4625
+data.srcip:192.168.174.132
+```
 
-Lọc địa chỉ IP nguồn
+## Custom Rules
 
-data.srcip:192.168.174.131
+| Rule | Level | Mục đích |
+|---|---:|---|
+| `100600` | 15 | Critical SSH brute-force, kế thừa Rule `5763` |
+| `100601` | 16 | Brute-force trực tiếp tài khoản `root` |
+| `100602` | 15 | Critical Windows RDP brute-force, kế thừa Rule `60204` |
+| `100603` | 13 | Failed login vào `Administrator` |
 
-Kiểm tra số lượng Event phát sinh.
+MITRE ATT&CK: **T1110 — Brute Force**.
 
-7. XÂY DỰNG RULE TRÊN SIEM
+![Cảnh báo trên Wazuh](assets/wazuh-alert.png)
 
-Mở file
+## Điều tra và ứng phó
 
-nano /var/ossec/etc/rules/local_rules.xml
+1. Xác định IP nguồn, username bị nhắm tới và thời gian bắt đầu/kết thúc.
+2. Kiểm tra có đăng nhập thành công sau chuỗi thất bại hay không.
+3. Disable hoặc reset tài khoản bị compromise.
+4. Chặn IP nguồn bằng firewall; giới hạn SSH/RDP theo allowlist/VPN.
+5. Bật lockout policy, MFA và Network Level Authentication cho RDP.
+6. Kiểm tra persistence hoặc hoạt động hậu đăng nhập nếu có success event.
 
-Thêm Rule phát hiện SSH Failed
+## Kết quả mong đợi
 
-<group name="local,custom_bruteforce,">
-
-     <!-- SSH Brute Force - High Severity                	-->
-
-    <!-- Trigger khi Wazuh đã phát hiện SSH Brute Force 	-->
-
-    <rule id="100600" level="15">
-
-        <if_sid>5763</if_sid>
-
-        <description>
-
-        	[CUSTOM] Critical SSH Brute Force Attack Detected
-
-        </description>
-
-        <group>
-
-            ssh,bruteforce,attack,custom,
-
-        </group>
-
-        <mitre>
-
-        	<id>T1110</id>
-
-        </mitre>
-
-    </rule>
-
-    <!-- SSH Root Brute Force                          	-->
-
-    <rule id="100601" level="16">
-
-        <if_sid>5760</if_sid>
-
-        <match>root</match>
-
-        <description>
-
-        	[CUSTOM] SSH Root Account Brute Force
-
-        </description>
-
-        <group>
-
-        	ssh,root,attack,custom,
-
-        </group>
-
-    </rule>
-
-    <!-- Windows RDP Brute Force                           -->
-
-    <rule id="100602" level="15">
-
-        <if_sid>60204</if_sid>
-
-        <description>
-
-        	[CUSTOM] Critical Windows RDP Brute Force
-
-        </description>
-
-        <group>
-
-        	windows,rdp,bruteforce,custom,
-
-        </group>
-
-        <mitre>
-
-        	<id>T1110</id>
-
-        </mitre>
-
-    </rule>
-
-    <!-- Administrator Failed Login                    	-->
-
-    <rule id="100603" level="13">
-
-        <if_sid>60122</if_sid>
-
-        <field name="win.eventdata.targetUserName">
-
-        	Administrator
-
-        </field>
-
-        <description>
-
-        	[CUSTOM] Administrator Login Failure
-
-        </description>
-
-        <group>
-
-        	windows,administrator,custom,
-
-        </group>
-
-    </rule>
-
-</group>
-
-Lưu file.
-
-Khởi động lại Wazuh
-
-systemctl restart wazuh-manager
-
-Kiểm tra cấu hình
-
-/var/ossec/bin/wazuh-analysisd -t
-
-8. TẤN CÔNG SAU KHI XÂY DỰNG RULE
-
-Thực hiện lại Brute Force SSH
-
-hydra \
-
--l ubuntu \
-
--P /usr/share/wordlists/rockyou.txt \
-
-ssh://192.168.174.131
-
-Thực hiện lại Brute Force RDP
-
-hydra -t 1 -W 3 \-l Administrator \-P /usr/share/wordlists/rockyou.txt \rdp://192.168.174.129
-
-Theo dõi Alert
-
-tail -f /var/ossec/logs/alerts/alerts.json
-
-Kiểm tra Dashboard.
-
-9. HƯỚNG DẪN XỬ LÝ
-
-Trên Ubuntu
-
-Chặn IP tấn công
-
-sudo iptables -A INPUT -s 192.168.174.132 -j DROP
-
-Hoặc
-
-sudo ufw deny from 192.168.174.162
-
-Khóa tài khoản
-
-sudo passwd -l root
-
-Trên Windows
-
-Chặn IP
-
-New-NetFirewallRule `
-
--DisplayName "Block Attacker" `
-
--Direction Inbound `
-
--RemoteAddress 192.168.174.132 `
-
--Action Block
-
-Khóa tài khoản
-
-Computer Management
-
-Local Users and Groups
-
-Users
-
-Administrator
-
- Disable Account
-
-Kiểm tra kết quả
-
-Thực hiện lại Brute Force từ Kali Linux.
-
-Đảm bảo Hydra không thể kết nối đến dịch vụ SSH hoặc RDP.
-
-Kiểm tra Dashboard xác nhận không còn phát sinh phiên đăng nhập thành công và các kết nối từ địa chỉ IP tấn công đã bị chặn.
+- Linux/Windows đều tạo đủ authentication telemetry.
+- Wazuh correlation rule sinh alert mức cao thay vì hàng trăm event rời rạc.
+- Sau containment, Hydra không còn kết nối được hoặc tài khoản không thể đăng nhập.
